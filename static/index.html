@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Narrative Arc</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3a;
+    --accent: #7c6af7;
+    --accent2: #f76aab;
+    --text: #e8e8f0;
+    --muted: #6b6b80;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --red: #f87171;
+    --radius: 10px;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* Layout */
+  .app { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .main { overflow-y: auto; }
+
+  /* Header */
+  .logo { padding: 20px; border-bottom: 1px solid var(--border); }
+  .logo h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo h1 span { color: var(--accent); }
+  .logo p { color: var(--muted); font-size: 11px; margin-top: 3px; }
+
+  /* Sidebar sections */
+  .sidebar-section { padding: 16px; border-bottom: 1px solid var(--border); }
+  .sidebar-section h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+
+  /* Upload zone */
+  .upload-zone { border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 16px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(124,106,247,0.05); }
+  .upload-zone input { display: none; }
+  .upload-zone .icon { font-size: 24px; margin-bottom: 6px; }
+  .upload-zone p { color: var(--muted); font-size: 12px; }
+  .upload-zone .hint { font-size: 10px; color: var(--muted); margin-top: 4px; opacity: 0.6; }
+
+  .fps-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .fps-row label { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .fps-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 4px 8px; font-size: 12px; }
+
+  /* Video list */
+  .video-list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
+  .video-card { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; transition: border-color 0.2s; }
+  .video-card:hover { border-color: var(--accent); }
+  .video-card.selected { border-color: var(--accent); background: rgba(124,106,247,0.08); }
+  .video-card img { width: 48px; height: 32px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+  .video-card .info { flex: 1; min-width: 0; }
+  .video-card .name { font-size: 11px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .video-card .meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .video-card .del { color: var(--muted); font-size: 14px; opacity: 0; transition: opacity 0.2s; cursor: pointer; flex-shrink: 0; }
+  .video-card:hover .del { opacity: 1; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .tab { padding: 14px 20px; font-size: 13px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Tab panes */
+  .pane { display: none; padding: 24px; }
+  .pane.active { display: block; }
+
+  /* Search bar */
+  .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+  .search-bar input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 14px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--muted); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; white-space: nowrap; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #6a58e0; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* Results grid */
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: transform 0.15s, border-color 0.15s; cursor: pointer; }
+  .result-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .result-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
+  .result-card .card-body { padding: 10px; }
+  .result-card .video-name { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result-card .timestamp { font-size: 13px; font-weight: 700; font-family: var(--mono); margin-top: 3px; }
+  .result-card .score { font-size: 10px; color: var(--accent); margin-top: 2px; }
+
+  /* Arc chart */
+  .arc-container { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .arc-container h4 { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  canvas.arc-canvas { width: 100%; height: 100px; display: block; cursor: crosshair; }
+
+  /* Align panel */
+  .align-selectors { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .align-selectors select { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 12px; font-size: 13px; flex: 1; min-width: 160px; }
+  .align-selectors .arrow { color: var(--accent); font-size: 18px; }
+
+  /* Equivalent moment display */
+  .moment-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .moment-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .moment-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+  .moment-card .mc-body { padding: 12px; }
+  .moment-card .mc-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .moment-card .mc-ts { font-size: 20px; font-weight: 700; font-family: var(--mono); color: var(--accent); margin-top: 4px; }
+  .moment-card .mc-file { font-size: 11px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Scene DNA */
+  .dna-controls { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .dna-controls label { font-size: 12px; color: var(--muted); }
+  .dna-controls input[type=range] { width: 120px; accent-color: var(--accent); }
+  .cluster-grid { display: flex; flex-direction: column; gap: 16px; }
+  .cluster-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .cluster-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .cluster-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .cluster-header span { font-size: 12px; font-weight: 600; }
+  .cluster-header .ct { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .cluster-frames { display: flex; gap: 8px; padding: 12px; overflow-x: auto; }
+  .cluster-frame { flex-shrink: 0; position: relative; cursor: pointer; }
+  .cluster-frame img { width: 120px; height: 68px; object-fit: cover; border-radius: 6px; display: block; border: 2px solid transparent; transition: border-color 0.15s; }
+  .cluster-frame:hover img { border-color: var(--accent); }
+  .cluster-frame .cf-label { position: absolute; bottom: 4px; right: 4px; background: rgba(0,0,0,0.7); border-radius: 4px; padding: 1px 5px; font-size: 9px; font-family: var(--mono); color: #fff; }
+  .cluster-frame .cf-vid { position: absolute; top: 4px; left: 4px; background: rgba(124,106,247,0.85); border-radius: 4px; padding: 1px 5px; font-size: 9px; color: #fff; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Status / loading */
+  .status-bar { padding: 10px 16px; background: rgba(124,106,247,0.08); border: 1px solid rgba(124,106,247,0.2); border-radius: 8px; font-size: 12px; color: var(--accent); display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(124,106,247,0.3); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-state .big { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 13px; line-height: 1.6; }
+
+  /* Toast */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; max-width: 300px; }
+  #toast.show { opacity: 1; }
+  #toast.err { border-color: var(--red); color: var(--red); }
+
+  /* DTW arc display */
+  .dual-arc { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .arc-clickable { cursor: crosshair; }
+  .arc-clickable:hover { opacity: 0.85; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tag-purple { background: rgba(124,106,247,0.15); color: var(--accent); }
+  .tag-pink { background: rgba(247,106,171,0.15); color: var(--accent2); }
+
+  .section-title { font-size: 13px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .progress-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <h1>Narrative <span>Arc</span></h1>
+      <p>Cross-video semantic alignment · Qwen3-VL</p>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Upload Video</h3>
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="video/*" multiple>
+        <div class="icon">🎬</div>
+        <p>Drop videos here or click to browse</p>
+        <p class="hint">MP4 · MOV · AVI · MKV · up to 500MB</p>
+      </div>
+      <div class="fps-row">
+        <label>Extract FPS:</label>
+        <input type="number" id="fpsInput" value="1" min="0.5" max="5" step="0.5">
+        <button class="btn btn-secondary btn-sm" onclick="triggerUpload()">Upload</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+      <h3>Loaded Videos (<span id="videoCount">0</span>)</h3>
+      <div class="video-list" id="videoList">
+        <div class="empty-state" style="padding:20px 0;">
+          <p>No videos yet</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="tabs">
+      <div class="tab active" data-tab="search">🔍 Semantic Search</div>
+      <div class="tab" data-tab="align">📐 Arc Alignment</div>
+      <div class="tab" data-tab="dna">🧬 Scene DNA</div>
+    </div>
+
+    <!-- Search Pane -->
+    <div class="pane active" id="pane-search">
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Describe a moment... e.g. 'tension before something happens'" onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="btn btn-primary" onclick="doSearch()" id="searchBtn">Search</button>
+      </div>
+      <div id="searchStatus"></div>
+      <div id="searchResults">
+        <div class="empty-state">
+          <div class="big">🎞️</div>
+          <p>Upload videos and search for moments<br>using natural language.<br><br>
+          <span style="font-size:11px;opacity:0.6">Powered by Qwen3-VL-Embedding · vLLM</span></p>
+        </div>
+      </div>
+
+      <!-- Arc viewer -->
+      <div id="arcSection" style="display:none; margin-top:24px;">
+        <div class="divider"></div>
+        <div class="section-title">Semantic Velocity Arcs <span class="tag tag-purple">Click a frame on the arc to find its equivalent in other videos</span></div>
+        <div id="arcCharts"></div>
+      </div>
+    </div>
+
+    <!-- Align Pane -->
+    <div class="pane" id="pane-align">
+      <div class="section-title">DTW Narrative Arc Alignment</div>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:20px;">Select two videos. Pick a moment in Video A — find its structurally equivalent moment in Video B, even if the content is completely different.</p>
+
+      <div class="align-selectors">
+        <select id="alignA"></select>
+        <span class="arrow">→</span>
+        <select id="alignB"></select>
+        <button class="btn btn-primary" onclick="doAlign()" id="alignBtn">Align Arcs</button>
+      </div>
+
+      <div id="alignStatus"></div>
+      <div id="alignResult"></div>
+    </div>
+
+    <!-- Scene DNA Pane -->
+    <div class="pane" id="pane-dna">
+      <div class="section-title">Scene DNA <span class="tag tag-pink">Unsupervised</span></div>
+      <p style="color:var(--muted); font-size:13px; margin-bottom:20px;">Clusters ALL frames from ALL videos in joint embedding space. Moments that land in the same cluster share semantic structure — regardless of which video they came from.</p>
+
+      <div class="dna-controls">
+        <label>Clusters: <strong id="clusterCountLabel">6</strong></label>
+        <input type="range" id="clusterCount" min="3" max="12" value="6" oninput="document.getElementById('clusterCountLabel').textContent=this.value">
+        <button class="btn btn-primary" onclick="doDNA()" id="dnaBtn">Run Scene DNA</button>
+      </div>
+
+      <div id="dnaStatus"></div>
+      <div id="dnaResult"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';
+let videos = [];  // [{video_id, filename, duration, n_frames, thumbnail}]
+let arcData = {}; // video_id → {arc, timestamps}
+let selectedAlignA = null, selectedAlignB = null;
+let currentAlignPath = null;
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+
+function toast(msg, err=false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (err ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3000);
+}
+
+function fmtTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = (sec % 60).toFixed(1).padStart(4, '0');
+  return `${m}:${s}`;
+}
+
+function setStatus(containerId, msg, loading=true) {
+  const el = document.getElementById(containerId);
+  if (!msg) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="status-bar">${loading ? '<div class="spinner"></div>' : ''}${msg}</div>`;
+}
+
+function clusterColor(i, n) {
+  const hues = [260, 320, 180, 40, 100, 210, 350, 140, 280, 20, 160, 300];
+  const h = hues[i % hues.length];
+  return `hsl(${h}, 70%, 60%)`;
+}
+
+// ── Upload ─────────────────────────────────────────────────────────────────
+
+function triggerUpload() {
+  document.getElementById('fileInput').click();
+}
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('click', () => document.getElementById('fileInput').click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  uploadFiles(Array.from(e.dataTransfer.files));
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  uploadFiles(Array.from(e.target.files));
+  e.target.value = '';
+});
+
+async function uploadFiles(files) {
+  const fps = parseFloat(document.getElementById('fpsInput').value) || 1.0;
+  for (const file of files) {
+    await uploadOne(file, fps);
+  }
+}
+
+async function uploadOne(file, fps) {
+  toast(`Processing ${file.name}... this may take 30–90s`);
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('fps', fps);
+  try {
+    const r = await fetch(`${API}/api/upload`, { method: 'POST', body: fd });
+    if (!r.ok) { const e = await r.json(); toast(e.detail || 'Upload failed', true); return; }
+    const data = await r.json();
+    toast(`✓ ${file.name} ready (${data.record.n_frames} frames)`);
+    await refreshVideos();
+  } catch (e) {
+    toast(`Error: ${e.message}`, true);
+  }
+}
+
+// ── Video list ─────────────────────────────────────────────────────────────
+
+async function refreshVideos() {
+  const r = await fetch(`${API}/api/videos`);
+  const data = await r.json();
+  videos = data.videos;
+  document.getElementById('videoCount').textContent = videos.length;
+  renderVideoList();
+  updateAlignSelects();
+  if (videos.length > 0) {
+    document.getElementById('arcSection').style.display = 'block';
+    renderAllArcs();
+  }
+}
+
+function renderVideoList() {
+  const el = document.getElementById('videoList');
+  if (videos.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:20px 0;"><p>No videos yet</p></div>';
+    return;
+  }
+  el.innerHTML = videos.map(v => `
+    <div class="video-card" id="vc-${v.video_id}">
+      <img src="data:image/jpeg;base64,${v.thumbnail}" alt="">
+      <div class="info">
+        <div class="name" title="${v.filename}">${v.filename}</div>
+        <div class="meta">${fmtTime(v.duration)} · ${v.n_frames} frames</div>
+      </div>
+      <span class="del" onclick="deleteVideo('${v.video_id}', event)">✕</span>
+    </div>
+  `).join('');
+}
+
+async function deleteVideo(id, e) {
+  e.stopPropagation();
+  await fetch(`${API}/api/video/${id}`, { method: 'DELETE' });
+  toast('Video removed');
+  await refreshVideos();
+}
+
+// ── Semantic Search ────────────────────────────────────────────────────────
+
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (!q) { toast('Enter a search query', true); return; }
+  if (videos.length === 0) { toast('Upload videos first', true); return; }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  setStatus('searchStatus', `Searching for "${q}" across ${videos.length} video(s)...`);
+
+  try {
+    const r = await fetch(`${API}/api/query/text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q, top_k: 4 })
+    });
+    const data = await r.json();
+    setStatus('searchStatus', '');
+    renderSearchResults(data.results);
+  } catch(e) {
+    setStatus('searchStatus', '');
+    toast(`Error: ${e.message}`, true);
+  }
+  btn.disabled = false;
+}
+
+function renderSearchResults(results) {
+  const el = document.getElementById('searchResults');
+  if (!results || results.length === 0) {
+    el.innerHTML = '<div class="empty-state"><p>No results found</p></div>';
+    return;
+  }
+  el.innerHTML = `<div class="results-grid">` + results.map(r => `
+    <div class="result-card" onclick="queryByFrame('${r.video_id}', ${r.frame_idx})">
+      <img src="data:image/jpeg;base64,${r.frame_b64}" alt="">
+      <div class="card-body">
+        <div class="video-name">${r.filename}</div>
+        <div class="timestamp">${fmtTime(r.timestamp)}</div>
+        <div class="score">similarity ${(r.score * 100).toFixed(1)}%</div>
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+
+// ── Click-a-frame search ───────────────────────────────────────────────────
+
+async function queryByFrame(videoId, frameIdx) {
+  if (videos.length < 2) { toast('Need at least 2 videos for cross-video frame search'); return; }
+  setStatus('searchStatus', `Finding equivalent moments in other videos...`);
+
+  const r = await fetch(`${API}/api/query/frame`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_video_id: videoId, frame_idx: frameIdx, top_k: 3 })
+  });
+  const data = await r.json();
+  setStatus('searchStatus', '');
+
+  const el = document.getElementById('searchResults');
+  const srcHtml = `
+    <div class="section-title" style="margin-bottom:14px;">
+      Source Frame <span class="tag tag-purple">${data.source.filename}</span>
+      <span style="font-family:var(--mono);font-size:13px;color:var(--muted)">${fmtTime(data.source.timestamp)}</span>
+    </div>
+    <div style="display:flex;gap:14px;margin-bottom:20px;">
+      <img src="data:image/jpeg;base64,${data.source.frame_b64}" style="width:200px;border-radius:8px;border:2px solid var(--accent);">
+      <div style="color:var(--muted);font-size:13px;padding-top:8px;">
+        Click any result below to search deeper.<br>
+        <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="doSearch()">← Back to text search</button>
+      </div>
+    </div>
+    <div class="section-title">Similar moments in other videos</div>
+  `;
+  el.innerHTML = srcHtml + `<div class="results-grid">` +
+    data.results.map(r => `
+      <div class="result-card" onclick="queryByFrame('${r.video_id}', ${r.frame_idx})">
+        <img src="data:image/jpeg;base64,${r.frame_b64}" alt="">
+        <div class="card-body">
+          <div class="video-name">${r.filename}</div>
+          <div class="timestamp">${fmtTime(r.timestamp)}</div>
+          <div class="score">similarity ${(r.score * 100).toFixed(1)}%</div>
+        </div>
+      </div>
+    `).join('') + `</div>`;
+}
+
+// ── Arc charts ─────────────────────────────────────────────────────────────
+
+async function renderAllArcs() {
+  const container = document.getElementById('arcCharts');
+  container.innerHTML = '';
+  for (const v of videos) {
+    const rec = await (await fetch(`${API}/api/video/${v.video_id}`)).json();
+    arcData[v.video_id] = { arc: rec.arc, timestamps: rec.timestamps, filename: rec.filename };
+
+    const wrap = document.createElement('div');
+    wrap.className = 'arc-container';
+    wrap.innerHTML = `<h4>${v.filename} — semantic velocity arc <span class="tag tag-purple">${v.n_frames} frames</span></h4>
+      <canvas class="arc-canvas arc-clickable" id="arc-${v.video_id}" height="100"></canvas>`;
+    container.appendChild(wrap);
+
+    requestAnimationFrame(() => drawArc(`arc-${v.video_id}`, rec.arc, rec.timestamps, v.video_id));
+  }
+}
+
+function drawArc(canvasId, arc, timestamps, videoId, highlightIdx=null) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = 100;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = 'transparent';
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = 8;
+  const n = arc.length;
+  const xScale = x => pad + (x / (n - 1)) * (W - 2 * pad);
+  const yScale = y => H - pad - y * (H - 2 * pad);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad + i * (H - 2 * pad) / 4;
+    ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(W - pad, y); ctx.stroke();
+  }
+
+  // Gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(124,106,247,0.4)');
+  grad.addColorStop(1, 'rgba(124,106,247,0.02)');
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(arc[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(xScale(i), yScale(arc[i]));
+  ctx.lineTo(xScale(n - 1), H - pad);
+  ctx.lineTo(xScale(0), H - pad);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#7c6af7';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.moveTo(xScale(0), yScale(arc[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(xScale(i), yScale(arc[i]));
+  ctx.stroke();
+
+  // Highlight peaks
+  const mean = arc.reduce((a,b)=>a+b,0)/n;
+  const std = Math.sqrt(arc.reduce((s,v)=>s+(v-mean)**2,0)/n);
+  for (let i = 0; i < n; i++) {
+    if (arc[i] > mean + 1.5 * std) {
+      ctx.beginPath();
+      ctx.arc(xScale(i), yScale(arc[i]), 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#f76aab';
+      ctx.fill();
+    }
+  }
+
+  // Highlight selected frame
+  if (highlightIdx !== null) {
+    ctx.beginPath();
+    ctx.arc(xScale(highlightIdx), yScale(arc[highlightIdx]), 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Click handler for arc → cross-video query
+  canvas.onclick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const idx = Math.round(((x - pad) / (W - 2 * pad)) * (n - 1));
+    const clamped = Math.max(0, Math.min(n - 1, idx));
+    drawArc(canvasId, arc, timestamps, videoId, clamped);
+    queryByFrame(videoId, clamped);
+    document.getElementById('pane-search').scrollIntoView({ behavior: 'smooth' });
+    // Switch to search tab
+    switchTab('search');
+  };
+}
+
+// ── Arc Alignment ──────────────────────────────────────────────────────────
+
+function updateAlignSelects() {
+  const selA = document.getElementById('alignA');
+  const selB = document.getElementById('alignB');
+  const opts = videos.map(v => `<option value="${v.video_id}">${v.filename}</option>`).join('');
+  selA.innerHTML = opts;
+  selB.innerHTML = opts;
+  if (videos.length >= 2) selB.selectedIndex = 1;
+}
+
+async function doAlign() {
+  const idA = document.getElementById('alignA').value;
+  const idB = document.getElementById('alignB').value;
+  if (!idA || !idB) { toast('Select two videos', true); return; }
+  if (idA === idB) { toast('Select two different videos', true); return; }
+
+  const btn = document.getElementById('alignBtn');
+  btn.disabled = true;
+  setStatus('alignStatus', 'Running DTW arc alignment...');
+
+  const r = await fetch(`${API}/api/align`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ video_id_a: idA, video_id_b: idB })
+  });
+  const data = await r.json();
+  setStatus('alignStatus', '');
+  btn.disabled = false;
+  renderAlignResult(data, idA, idB);
+}
+
+function renderAlignResult(data, idA, idB) {
+  currentAlignPath = data.path_sampled;
+  const el = document.getElementById('alignResult');
+
+  const distNorm = (data.dtw_distance / (data.n_frames_a + data.n_frames_b)).toFixed(3);
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px;display:flex;gap:12px;align-items:center;">
+      <span>DTW distance: <strong style="font-family:var(--mono);color:var(--accent)">${data.dtw_distance.toFixed(2)}</strong></span>
+      <span style="color:var(--muted)">|</span>
+      <span>Normalized: <strong style="font-family:var(--mono)">${distNorm}</strong></span>
+      <span class="tag tag-purple">${data.n_frames_a} × ${data.n_frames_b} frames</span>
+    </div>
+
+    <div class="dual-arc">
+      <div class="arc-container">
+        <h4>${data.filename_a}</h4>
+        <canvas class="arc-canvas arc-clickable" id="alignArc-a" height="100"></canvas>
+        <p style="color:var(--muted);font-size:11px;margin-top:8px;">↑ Click a frame to find its structural equivalent in Video B</p>
+      </div>
+      <div class="arc-container">
+        <h4>${data.filename_b}</h4>
+        <canvas class="arc-canvas" id="alignArc-b" height="100"></canvas>
+      </div>
+    </div>
+    <div id="equivalentMoment"></div>
+  `;
+
+  requestAnimationFrame(() => {
+    drawAlignArc('alignArc-a', data.arc_a, data.timestamps_a, idA, idB, data);
+    drawAlignArc('alignArc-b', data.arc_b, data.timestamps_b, idB, null, data);
+  });
+}
+
+function drawAlignArc(canvasId, arc, timestamps, videoId, targetVideoId, alignData) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = 100;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = 8, n = arc.length;
+  const xScale = x => pad + (x / (n - 1)) * (W - 2 * pad);
+  const yScale = y => H - pad - y * (H - 2 * pad);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, 'rgba(124,106,247,0.35)');
+  grad.addColorStop(1, 'rgba(124,106,247,0.02)');
+  ctx.beginPath();
+  ctx.moveTo(xScale(0), yScale(arc[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(xScale(i), yScale(arc[i]));
+  ctx.lineTo(xScale(n-1), H-pad); ctx.lineTo(xScale(0), H-pad); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle = '#7c6af7'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.moveTo(xScale(0), yScale(arc[0]));
+  for (let i = 1; i < n; i++) ctx.lineTo(xScale(i), yScale(arc[i]));
+  ctx.stroke();
+
+  if (targetVideoId) {
+    canvas.onclick = async (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const idx = Math.max(0, Math.min(n-1, Math.round(((x-pad)/(W-2*pad))*(n-1))));
+
+      // Re-fetch with query_frame_idx
+      setStatus('alignStatus', `Finding structural equivalent of frame ${idx} in target video...`);
+      const r = await fetch(`${API}/api/align`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ video_id_a: videoId, video_id_b: targetVideoId, query_frame_idx: idx })
+      });
+      const data = await r.json();
+      setStatus('alignStatus', '');
+
+      if (data.equivalent) {
+        renderEquivalentMoment(data.equivalent);
+        // Redraw both arcs with highlights
+        drawAlignArcHighlighted('alignArc-a', alignData.arc_a, idx);
+        drawAlignArcHighlighted('alignArc-b', alignData.arc_b, data.equivalent.frame_idx_b);
+      }
+    };
+  }
+}
+
+function drawAlignArcHighlighted(canvasId, arc, highlightIdx) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = 100;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W*dpr, H*dpr);
+  ctx.save(); ctx.scale(dpr, dpr);
+
+  const pad = 8, n = arc.length;
+  const xScale = x => pad + (x/(n-1))*(W-2*pad);
+  const yScale = y => H - pad - y*(H-2*pad);
+
+  const grad = ctx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'rgba(124,106,247,0.35)'); grad.addColorStop(1,'rgba(124,106,247,0.02)');
+  ctx.beginPath(); ctx.moveTo(xScale(0),yScale(arc[0]));
+  for(let i=1;i<n;i++) ctx.lineTo(xScale(i),yScale(arc[i]));
+  ctx.lineTo(xScale(n-1),H-pad); ctx.lineTo(xScale(0),H-pad); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  ctx.beginPath(); ctx.strokeStyle='#7c6af7'; ctx.lineWidth=2; ctx.lineJoin='round';
+  ctx.moveTo(xScale(0),yScale(arc[0]));
+  for(let i=1;i<n;i++) ctx.lineTo(xScale(i),yScale(arc[i]));
+  ctx.stroke();
+
+  // Vertical line at highlight
+  ctx.beginPath();
+  ctx.strokeStyle = 'rgba(251,191,36,0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4,3]);
+  ctx.moveTo(xScale(highlightIdx), pad);
+  ctx.lineTo(xScale(highlightIdx), H-pad);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.arc(xScale(highlightIdx), yScale(arc[highlightIdx]), 7, 0, Math.PI*2);
+  ctx.fillStyle='#fbbf24'; ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+
+  ctx.restore();
+}
+
+function renderEquivalentMoment(eq) {
+  const el = document.getElementById('equivalentMoment');
+  el.innerHTML = `
+    <div class="divider"></div>
+    <div class="section-title">Structurally Equivalent Moments</div>
+    <div class="moment-pair">
+      <div class="moment-card">
+        <img src="data:image/jpeg;base64,${eq.frame_b64_a}" alt="">
+        <div class="mc-body">
+          <div class="mc-label">Video A · selected frame</div>
+          <div class="mc-ts">${fmtTime(eq.timestamp_a)}</div>
+        </div>
+      </div>
+      <div class="moment-card">
+        <img src="data:image/jpeg;base64,${eq.frame_b64_b}" alt="">
+        <div class="mc-body">
+          <div class="mc-label">Video B · equivalent moment</div>
+          <div class="mc-ts" style="color:var(--accent2)">${fmtTime(eq.timestamp_b)}</div>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12px;margin-top:12px;">
+      These moments share the same structural position in their respective narrative arcs — 
+      as determined by DTW alignment of embedding velocity curves.
+    </p>
+  `;
+}
+
+// ── Scene DNA ──────────────────────────────────────────────────────────────
+
+async function doDNA() {
+  if (videos.length < 2) { toast('Need at least 2 videos', true); return; }
+  const n = parseInt(document.getElementById('clusterCount').value);
+  const btn = document.getElementById('dnaBtn');
+  btn.disabled = true;
+  setStatus('dnaStatus', `Clustering frames across ${videos.length} videos into ${n} semantic groups...`);
+
+  const r = await fetch(`${API}/api/scene-dna`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ n_clusters: n })
+  });
+  const data = await r.json();
+  setStatus('dnaStatus', '');
+  btn.disabled = false;
+  renderDNA(data);
+}
+
+function renderDNA(data) {
+  const el = document.getElementById('dnaResult');
+  const n = data.n_clusters;
+  const colors = Array.from({length:n}, (_,i) => clusterColor(i,n));
+
+  // Group frames by cluster
+  const clusters = Array.from({length:n}, () => []);
+  for (const [vidId, info] of Object.entries(data.frame_info)) {
+    for (const frame of info.frames) {
+      clusters[frame.cluster].push({ ...frame, filename: info.filename, video_id: vidId });
+    }
+  }
+
+  const clusterHtml = clusters.map((frames, ci) => {
+    if (frames.length === 0) return '';
+    // Count unique videos in this cluster
+    const uniqueVids = new Set(frames.map(f => f.video_id)).size;
+    const framesHtml = frames.map(f => `
+      <div class="cluster-frame" onclick="queryByFrame('${f.video_id}', ${f.frame_idx}); switchTab('search');">
+        <img src="data:image/jpeg;base64,${f.frame_b64}" alt="">
+        <span class="cf-label">${fmtTime(f.timestamp)}</span>
+        <span class="cf-vid" title="${f.filename}">${f.filename.replace(/\.[^.]+$/,'')}</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="cluster-group">
+        <div class="cluster-header">
+          <div class="cluster-dot" style="background:${colors[ci]}"></div>
+          <span>Cluster ${ci + 1}</span>
+          <span class="ct">${frames.length} frames · ${uniqueVids} video${uniqueVids>1?'s':''}</span>
+        </div>
+        <div class="cluster-frames">${framesHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="margin-bottom:16px;color:var(--muted);font-size:12px;">
+      ${Object.keys(data.frame_info).length} videos · 
+      ${Object.values(data.frame_info).reduce((s,v)=>s+v.frames.length,0)} total frames · 
+      ${n} semantic clusters
+    </div>
+    <div class="cluster-grid">${clusterHtml}</div>
+  `;
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('active', p.id === `pane-${name}`));
+}
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchTab(t.dataset.tab));
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+refreshVideos();
+</script>
+</body>
+</html>
