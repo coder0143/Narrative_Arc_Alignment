@@ -77,6 +77,15 @@ ssh -L 8000:localhost:8000 -J <jumphost> <your_user>@<hpc_node>
 
 ---
 
+## Demo video
+
+* A demo video showing the software functionalities and the software stack: [gdrive_link](https://drive.google.com/file/d/14hoIpK1a7bQG5OxnBjK-a3T8xoiK4LPW/view?usp=sharing)
+* A sample image from software stack:
+
+![NAA](static/NAA.png)
+
+---
+
 ## Model notes
 
 Default: `Qwen/Qwen3-VL-Embedding-2B`
